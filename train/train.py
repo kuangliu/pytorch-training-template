@@ -55,10 +55,12 @@ def train_epoch(train_loader, model, optimizer, epoch, cfg):
         # Gather all predictions across all devices.
         if cfg.NUM_GPUS > 1:
             loss, acc = all_reduce([loss, acc[0]])
+        else:
+            acc = acc[0]
 
         if is_master_proc():
             train_loss += loss.item()
-            train_acc += acc[0].item()
+            train_acc += acc.item()
             log.info('Loss: %.3f | Acc: %.2f | LR: %.3f' %
                      (train_loss/(batch_idx+1), train_acc / (batch_idx+1), lr))
 
@@ -89,10 +91,12 @@ def eval_epoch(val_loader, model, epoch, cfg):
         # Gather all predictions across all devices.
         if cfg.NUM_GPUS > 1:
             loss, acc = all_reduce([loss, acc[0]])
+        else:
+            acc = acc[0]
 
         if is_master_proc():
             test_loss += loss.item()
-            test_acc += acc[0].item()
+            test_acc += acc.item()
             log.info('Loss: %.3f | Acc: %.2f' %
                      (test_loss/(batch_idx+1), test_acc/(batch_idx+1)))
 
