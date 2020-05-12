@@ -33,7 +33,8 @@ def train_epoch(train_loader, model, optimizer, epoch, cfg):
 
     model.train()
     num_batches = len(train_loader)
-    train_loss = train_acc = 0.0
+    train_loss = 0.0
+    correct = total = 0.0
     for batch_idx, (inputs, labels) in enumerate(train_loader):
         inputs, labels = inputs.cuda(non_blocking=True), labels.cuda()
 
@@ -50,20 +51,21 @@ def train_epoch(train_loader, model, optimizer, epoch, cfg):
         loss.backward()
         optimizer.step()
 
-        # Accuracy.
-        acc = topk_accuracies(outputs, labels, (1,))
-
         # Gather all predictions across all devices.
         if cfg.NUM_GPUS > 1:
-            loss, acc = all_reduce([loss, acc[0]])
-        else:
-            acc = acc[0]
+            loss = all_reduce([loss])[0]
+            outputs, labels = all_gather([outputs, labels])
+
+        # Accuracy.
+        batch_correct = topks_correct(outputs, labels, (1,))[0]
+        correct += batch_correct.item()
+        total += labels.size(0)
 
         if is_master_proc():
             train_loss += loss.item()
-            train_acc += acc.item()
+            train_acc = correct / total
             log.info('Loss: %.3f | Acc: %.2f | LR: %.3f' %
-                     (train_loss/(batch_idx+1), train_acc / (batch_idx+1), lr))
+                     (train_loss/(batch_idx+1), train_acc, lr))
 
 
 @torch.no_grad()

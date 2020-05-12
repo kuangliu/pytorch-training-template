@@ -48,7 +48,7 @@ _C.SOLVER = CfgNode()
 _C.SOLVER.OPTIMIZING_METHOD = 'sgd'
 
 # Base learning rate.
-_C.SOLVER.BASE_LR = 0.001
+_C.SOLVER.BASE_LR = 0.1
 
 # Momentum.
 _C.SOLVER.MOMENTUM = 0.9
