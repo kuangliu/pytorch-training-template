@@ -64,7 +64,7 @@ def train_epoch(train_loader, model, optimizer, epoch, cfg):
         if is_master_proc():
             train_loss += loss.item()
             train_acc = correct / total
-            log.info('Loss: %.3f | Acc: %.2f | LR: %.3f' %
+            log.info('Loss: %.3f | Acc: %.3f | LR: %.3f' %
                      (train_loss/(batch_idx+1), train_acc, lr))
 
 
@@ -102,7 +102,7 @@ def eval_epoch(val_loader, model, epoch, cfg):
         if is_master_proc():
             test_loss += loss.item()
             test_acc = correct / total
-            log.info('Loss: %.3f | Acc: %.2f' %
+            log.info('Loss: %.3f | Acc: %.3f' %
                      (test_loss/(batch_idx+1), test_acc))
 
 
