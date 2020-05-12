@@ -10,11 +10,12 @@ import utils.multiprocessing as mp
 from config.defaults import get_cfg
 from models.model import build_model
 from models.optimizer import construct_optimizer
-from utils.metrics import topk_accuracies
+from datasets.loader import construct_loader, shuffle_dataset
+
+from utils.metrics import topks_correct
 from utils.checkpoint import save_checkpoint
 from utils.optim_util import set_lr, get_epoch_lr
-from utils.distributed import all_reduce, is_master_proc
-from datasets.loader import construct_loader, shuffle_dataset
+from utils.distributed import all_reduce, all_gather, is_master_proc
 
 
 def train_epoch(train_loader, model, optimizer, epoch, cfg):
@@ -40,16 +41,16 @@ def train_epoch(train_loader, model, optimizer, epoch, cfg):
         lr = get_epoch_lr(cfg, epoch+float(batch_idx)/num_batches)
         set_lr(optimizer, lr)
 
-        # Forward
+        # Forward.
         outputs = model(inputs)
         loss = F.cross_entropy(outputs, labels, reduction='mean')
 
-        # Backward
+        # Backward.
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        # Accuracy
+        # Accuracy.
         acc = topk_accuracies(outputs, labels, (1,))
 
         # Gather all predictions across all devices.
@@ -79,26 +80,28 @@ def eval_epoch(val_loader, model, epoch, cfg):
         log.info('Testing..')
 
     model.eval()
-    test_loss = test_acc = 0.0
+    test_loss = 0.0
+    correct = total = 0.0
     for batch_idx, (inputs, labels) in enumerate(val_loader):
         inputs, labels = inputs.cuda(non_blocking=True), labels.cuda()
         outputs = model(inputs)
         loss = F.cross_entropy(outputs, labels, reduction='mean')
 
-        # Accuracy.
-        acc = topk_accuracies(outputs, labels, (1,))
-
         # Gather all predictions across all devices.
         if cfg.NUM_GPUS > 1:
-            loss, acc = all_reduce([loss, acc[0]])
-        else:
-            acc = acc[0]
+            loss = all_reduce([loss])[0]
+            outputs, labels = all_gather([outputs, labels])
+
+        # Accuracy.
+        batch_correct = topks_correct(outputs, labels, (1,))[0]
+        correct += batch_correct.item()
+        total += labels.size(0)
 
         if is_master_proc():
             test_loss += loss.item()
-            test_acc += acc.item()
+            test_acc = correct / total
             log.info('Loss: %.3f | Acc: %.2f' %
-                     (test_loss/(batch_idx+1), test_acc/(batch_idx+1)))
+                     (test_loss/(batch_idx+1), test_acc))
 
 
 def train(cfg):
